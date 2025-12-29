@@ -198,6 +198,21 @@
         
         <div class="status" id="status">Ready to connect to PM5 device</div>
         
+        <div class="data-panel" style="margin-bottom: 20px; background-color: #fff8e1; border-left-color: #ffc107;">
+            <h3>Control Characteristic Testing</h3>
+            <p style="margin-bottom: 10px;">Send arbitrary bytes to TX control characteristic (ce060021-43e5-11e4-916c-0800200c9a66)</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                <input type="text" id="txInput" placeholder="Enter hex bytes (e.g., f100f2)" 
+                    style="flex: 1; min-width: 200px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;">
+                <button id="sendTxBtn" class="csafe-btn" disabled>Send to TX</button>
+                <button id="toggleRxBtn" class="csafe-btn" disabled>Start RX Notifications</button>
+            </div>
+            <div id="rxData" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; min-height: 60px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                <strong>RX Control Data (ce060022-43e5-11e4-916c-0800200c9a66):</strong>
+                <div id="rxDataContent" style="margin-top: 5px;">No data received yet</div>
+            </div>
+        </div>
+        
         <div class="data-grid">
             <div class="data-panel device-info" id="deviceInfo">
                 <h3>Device Information</h3>

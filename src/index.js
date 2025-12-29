@@ -9,6 +9,7 @@ class PM5Demo {
         this.pm5Device = null;
         this.isConnected = false;
         this.workoutData = {};
+        this.rxNotificationsActive = false;
         
         // Bind UI event handlers
         this.bindEventHandlers();
@@ -31,6 +32,19 @@ class PM5Demo {
         document.getElementById('stopNotificationsBtn').addEventListener('click',
             this.handleStopNotifications.bind(this));
         
+        // Control characteristic buttons
+        document.getElementById('sendTxBtn').addEventListener('click',
+            this.handleSendTx.bind(this));
+        
+        document.getElementById('toggleRxBtn').addEventListener('click',
+            this.handleToggleRx.bind(this));
+        
+        // Allow Enter key to send TX data
+        document.getElementById('txInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('sendTxBtn').disabled) {
+                this.handleSendTx();
+            }
+        });
     }
 
     async handleConnect() {
@@ -45,6 +59,7 @@ class PM5Demo {
             this.pm5Device.onWorkoutData = this.handleWorkoutData.bind(this);
             this.pm5Device.onStrokeData = this.handleStrokeData.bind(this);
             this.pm5Device.onSplitData = this.handleSplitData.bind(this);
+            this.pm5Device.onControlRxData = this.handleControlRxData.bind(this);
             
             this.updateStatus('Connecting to PM5...');
             await this.pm5Device.connect();
@@ -69,6 +84,7 @@ class PM5Demo {
     handleDeviceDisconnected() {
         this.isConnected = false;
         this.pm5Device = null;
+        this.rxNotificationsActive = false;
         this.updateConnectionUI();
         this.updateStatus('PM5 device disconnected');
     }
@@ -97,6 +113,69 @@ class PM5Demo {
             console.error('Failed to stop notifications:', error);
             this.updateStatus(`Failed to stop notifications: ${error.message}`);
         }
+    }
+
+    async handleSendTx() {
+        if (!this.pm5Device) return;
+        
+        const input = document.getElementById('txInput');
+        const hexString = input.value.trim();
+        
+        if (!hexString) {
+            this.updateStatus('Please enter hex bytes to send');
+            return;
+        }
+        
+        try {
+            this.updateStatus(`Sending TX: ${hexString}`);
+            await this.pm5Device.sendControlBytes(hexString);
+            this.updateStatus('TX data sent successfully');
+            input.value = '';
+        } catch (error) {
+            console.error('Failed to send TX data:', error);
+            this.updateStatus(`Failed to send TX: ${error.message}`);
+        }
+    }
+
+    async handleToggleRx() {
+        if (!this.pm5Device) return;
+        
+        try {
+            if (this.rxNotificationsActive) {
+                this.updateStatus('Stopping RX control notifications...');
+                await this.pm5Device.stopControlRxNotifications();
+                this.rxNotificationsActive = false;
+                this.updateStatus('RX control notifications stopped');
+            } else {
+                this.updateStatus('Starting RX control notifications...');
+                await this.pm5Device.startControlRxNotifications();
+                this.rxNotificationsActive = true;
+                this.updateStatus('RX control notifications started - listening for data...');
+            }
+            this.updateConnectionUI();
+        } catch (error) {
+            console.error('Failed to toggle RX notifications:', error);
+            this.updateStatus(`Failed to toggle RX: ${error.message}`);
+        }
+    }
+
+    handleControlRxData(data) {
+        console.log('Control RX data received:', data);
+        
+        const rxContent = document.getElementById('rxDataContent');
+        const timestamp = new Date(data.timestamp).toLocaleTimeString();
+        
+        const dataLine = `<div style="margin-bottom: 5px;">[${timestamp}] ${data.hexString}</div>`;
+        
+        if (rxContent.textContent === 'No data received yet') {
+            rxContent.innerHTML = dataLine;
+        } else {
+            rxContent.innerHTML += dataLine;
+        }
+        
+        // Auto-scroll to bottom
+        const rxDataDiv = document.getElementById('rxData');
+        rxDataDiv.scrollTop = rxDataDiv.scrollHeight;
     }
 
 
@@ -173,17 +252,34 @@ class PM5Demo {
         const disconnectBtn = document.getElementById('disconnectBtn');
         const startNotificationsBtn = document.getElementById('startNotificationsBtn');
         const stopNotificationsBtn = document.getElementById('stopNotificationsBtn');
+        const sendTxBtn = document.getElementById('sendTxBtn');
+        const toggleRxBtn = document.getElementById('toggleRxBtn');
         
         if (this.isConnected) {
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
             startNotificationsBtn.disabled = false;
             stopNotificationsBtn.disabled = false;
+            sendTxBtn.disabled = false;
+            toggleRxBtn.disabled = false;
+            
+            // Update toggle button text based on state
+            if (this.rxNotificationsActive) {
+                toggleRxBtn.textContent = 'Stop RX Notifications';
+                toggleRxBtn.style.backgroundColor = '#dc3545';
+            } else {
+                toggleRxBtn.textContent = 'Start RX Notifications';
+                toggleRxBtn.style.backgroundColor = '#28a745';
+            }
         } else {
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
             startNotificationsBtn.disabled = true;
             stopNotificationsBtn.disabled = true;
+            sendTxBtn.disabled = true;
+            toggleRxBtn.disabled = true;
+            toggleRxBtn.textContent = 'Start RX Notifications';
+            toggleRxBtn.style.backgroundColor = '';
         }
     }
 
