@@ -1,0 +1,18 @@
+{
+  "name": "js-pm5",
+  "version": "1.0.0",
+  "description": "JavaScript PM5 Bluetooth integration for web browsers",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": ["pm5", "bluetooth", "concept2", "rowing", "fitness"],
+  "author": "Ryan Farrell",
+  "license": "MIT",
+  "devDependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
