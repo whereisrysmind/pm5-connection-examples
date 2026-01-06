@@ -212,6 +212,24 @@
                 <div id="rxDataContent" style="margin-top: 5px;">No data received yet</div>
             </div>
         </div>
+
+        <div class="data-panel" style="margin-bottom: 20px; background-color: #e8f5e9; border-left-color: #4caf50;">
+            <h3>Characteristic Monitor</h3>
+            <p style="margin-bottom: 10px;">Subscribe to any notify-capable characteristic and view raw data</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
+                <select id="characteristicSelect" 
+                    style="flex: 1; min-width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;"
+                    disabled>
+                    <option value="">Connect to device to see characteristics...</option>
+                </select>
+                <button id="toggleCharSubscribeBtn" class="csafe-btn" disabled>Subscribe</button>
+                <button id="clearCharDataBtn" class="csafe-btn" style="background-color: #ff9800;">Clear Data</button>
+            </div>
+            <div id="characteristicRawData" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; min-height: 100px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+                <strong>Raw Characteristic Data:</strong>
+                <div id="characteristicRawDataContent" style="margin-top: 5px; color: #666;">No characteristic selected</div>
+            </div>
+        </div>
         
         <div class="data-grid">
             <div class="data-panel device-info" id="deviceInfo">

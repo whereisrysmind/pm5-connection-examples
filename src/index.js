@@ -3,6 +3,11 @@
  */
 
 import { scanForPM5Devices, PM5Device } from './device.js';
+import { 
+    DEVICE_INFO_CHARACTERISTICS, 
+    CONTROL_CHARACTERISTICS, 
+    ROWING_CHARACTERISTICS 
+} from './constants.js';
 
 class PM5Demo {
     constructor() {
@@ -10,6 +15,7 @@ class PM5Demo {
         this.isConnected = false;
         this.workoutData = {};
         this.rxNotificationsActive = false;
+        this.characteristicSubscriptionActive = false;
         
         // Bind UI event handlers
         this.bindEventHandlers();
@@ -45,6 +51,16 @@ class PM5Demo {
                 this.handleSendTx();
             }
         });
+        
+        // Characteristic monitor buttons
+        document.getElementById('toggleCharSubscribeBtn').addEventListener('click',
+            this.handleToggleCharacteristicSubscription.bind(this));
+        
+        document.getElementById('clearCharDataBtn').addEventListener('click',
+            this.handleClearCharacteristicData.bind(this));
+        
+        document.getElementById('characteristicSelect').addEventListener('change',
+            this.handleCharacteristicSelectChange.bind(this));
     }
 
     async handleConnect() {
@@ -60,6 +76,7 @@ class PM5Demo {
             this.pm5Device.onStrokeData = this.handleStrokeData.bind(this);
             this.pm5Device.onSplitData = this.handleSplitData.bind(this);
             this.pm5Device.onControlRxData = this.handleControlRxData.bind(this);
+            this.pm5Device.onCharacteristicData = this.handleCharacteristicData.bind(this);
             
             this.updateStatus('Connecting to PM5...');
             await this.pm5Device.connect();
@@ -67,6 +84,12 @@ class PM5Demo {
             this.isConnected = true;
             this.updateConnectionUI();
             this.displayDeviceInfo();
+            
+            // Discover notify-capable characteristics
+            this.updateStatus('Discovering characteristics...');
+            await this.pm5Device.discoverNotifyCapableCharacteristics();
+            this.populateCharacteristicDropdown();
+            
             this.updateStatus('Connected to PM5 successfully!');
             
         } catch (error) {
@@ -85,7 +108,9 @@ class PM5Demo {
         this.isConnected = false;
         this.pm5Device = null;
         this.rxNotificationsActive = false;
+        this.characteristicSubscriptionActive = false;
         this.updateConnectionUI();
+        this.clearCharacteristicDropdown();
         this.updateStatus('PM5 device disconnected');
     }
 
@@ -176,6 +201,145 @@ class PM5Demo {
         // Auto-scroll to bottom
         const rxDataDiv = document.getElementById('rxData');
         rxDataDiv.scrollTop = rxDataDiv.scrollHeight;
+    }
+
+    /**
+     * Get characteristic name from UUID
+     */
+    getCharacteristicName(uuid) {
+        // Create a reverse lookup map
+        const allChars = {
+            ...DEVICE_INFO_CHARACTERISTICS,
+            ...CONTROL_CHARACTERISTICS,
+            ...ROWING_CHARACTERISTICS
+        };
+        
+        for (const [name, charUuid] of Object.entries(allChars)) {
+            if (charUuid === uuid) {
+                return name.replace(/_/g, ' ');
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Populate characteristic dropdown with discovered characteristics
+     */
+    populateCharacteristicDropdown() {
+        const select = document.getElementById('characteristicSelect');
+        select.innerHTML = '<option value="">Select a characteristic...</option>';
+        
+        if (!this.pm5Device || !this.pm5Device.notifyCapableCharacteristics) {
+            return;
+        }
+        
+        const chars = this.pm5Device.notifyCapableCharacteristics;
+        
+        for (const charInfo of chars) {
+            const name = this.getCharacteristicName(charInfo.uuid);
+            
+            // Only add if we have a name for it
+            if (name) {
+                const option = document.createElement('option');
+                option.value = charInfo.uuid;
+                option.textContent = `${name} (${charInfo.uuid.substring(0, 8)}...)`;
+                select.appendChild(option);
+            }
+        }
+        
+        select.disabled = false;
+        console.log(`Populated dropdown with ${select.options.length - 1} characteristics`);
+    }
+
+    /**
+     * Clear characteristic dropdown
+     */
+    clearCharacteristicDropdown() {
+        const select = document.getElementById('characteristicSelect');
+        select.innerHTML = '<option value="">Connect to device to see characteristics...</option>';
+        select.disabled = true;
+    }
+
+    /**
+     * Handle characteristic selection change
+     */
+    handleCharacteristicSelectChange() {
+        const select = document.getElementById('characteristicSelect');
+        const toggleBtn = document.getElementById('toggleCharSubscribeBtn');
+        
+        if (select.value) {
+            toggleBtn.disabled = false;
+        } else {
+            toggleBtn.disabled = true;
+        }
+    }
+
+    /**
+     * Toggle characteristic subscription
+     */
+    async handleToggleCharacteristicSubscription() {
+        if (!this.pm5Device) return;
+        
+        const select = document.getElementById('characteristicSelect');
+        const uuid = select.value;
+        
+        if (!uuid) return;
+        
+        try {
+            if (this.characteristicSubscriptionActive) {
+                this.updateStatus('Unsubscribing from characteristic...');
+                await this.pm5Device.unsubscribeFromCharacteristic();
+                this.characteristicSubscriptionActive = false;
+                this.updateStatus('Unsubscribed from characteristic');
+            } else {
+                const name = this.getCharacteristicName(uuid);
+                this.updateStatus(`Subscribing to ${name}...`);
+                await this.pm5Device.subscribeToCharacteristic(uuid);
+                this.characteristicSubscriptionActive = true;
+                this.updateStatus(`Subscribed to ${name} - listening for data...`);
+            }
+            this.updateConnectionUI();
+        } catch (error) {
+            console.error('Failed to toggle characteristic subscription:', error);
+            this.updateStatus(`Failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Handle characteristic data
+     */
+    handleCharacteristicData(data) {
+        const content = document.getElementById('characteristicRawDataContent');
+        const timestamp = new Date(data.timestamp).toLocaleTimeString();
+        const name = this.getCharacteristicName(data.uuid) || data.uuid;
+        
+        // Format as hex with spaces every 2 bytes
+        const formattedHex = data.hexString.match(/.{1,2}/g).join(' ');
+        
+        const dataLine = `[${timestamp}] ${name}\n  HEX: ${formattedHex}\n  DEC: [${data.bytes.join(', ')}]\n`;
+        
+        if (content.textContent === 'No characteristic selected') {
+            content.textContent = dataLine;
+        } else {
+            content.textContent += '\n' + dataLine;
+        }
+        
+        // Auto-scroll to bottom
+        const container = document.getElementById('characteristicRawData');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    /**
+     * Clear characteristic data display
+     */
+    handleClearCharacteristicData() {
+        const content = document.getElementById('characteristicRawDataContent');
+        if (this.characteristicSubscriptionActive) {
+            content.textContent = 'Data cleared - still listening...\n';
+        } else {
+            content.textContent = 'No characteristic selected';
+        }
     }
 
 
@@ -271,6 +435,27 @@ class PM5Demo {
                 toggleRxBtn.textContent = 'Start RX Notifications';
                 toggleRxBtn.style.backgroundColor = '#28a745';
             }
+            
+            // Characteristic monitor controls
+            const charSelect = document.getElementById('characteristicSelect');
+            const toggleCharBtn = document.getElementById('toggleCharSubscribeBtn');
+            charSelect.disabled = false;
+            
+            if (charSelect.value) {
+                toggleCharBtn.disabled = false;
+                
+                if (this.characteristicSubscriptionActive) {
+                    toggleCharBtn.textContent = 'Unsubscribe';
+                    toggleCharBtn.style.backgroundColor = '#dc3545';
+                } else {
+                    toggleCharBtn.textContent = 'Subscribe';
+                    toggleCharBtn.style.backgroundColor = '#28a745';
+                }
+            } else {
+                toggleCharBtn.disabled = true;
+                toggleCharBtn.textContent = 'Subscribe';
+                toggleCharBtn.style.backgroundColor = '';
+            }
         } else {
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
@@ -280,6 +465,14 @@ class PM5Demo {
             toggleRxBtn.disabled = true;
             toggleRxBtn.textContent = 'Start RX Notifications';
             toggleRxBtn.style.backgroundColor = '';
+            
+            // Characteristic monitor controls
+            const charSelect = document.getElementById('characteristicSelect');
+            const toggleCharBtn = document.getElementById('toggleCharSubscribeBtn');
+            charSelect.disabled = true;
+            toggleCharBtn.disabled = true;
+            toggleCharBtn.textContent = 'Subscribe';
+            toggleCharBtn.style.backgroundColor = '';
         }
     }
 

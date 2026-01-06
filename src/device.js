@@ -90,6 +90,11 @@ export class PM5Device {
         this.onStrokeData = null;
         this.onSplitData = null;
         this.onControlRxData = null;
+        this.onCharacteristicData = null;
+        
+        // Discovered characteristics
+        this.notifyCapableCharacteristics = [];
+        this.activeCharacteristicSubscription = null;
         
         // Bind disconnect handler
         this.device.addEventListener('gattserverdisconnected', this.handleDisconnected.bind(this));
@@ -451,6 +456,139 @@ export class PM5Device {
             return true;
         } catch (error) {
             console.error('Error stopping RX control notifications:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Discover all notify-capable characteristics from all services
+     */
+    async discoverNotifyCapableCharacteristics() {
+        console.log('Discovering all notify-capable characteristics...');
+        const notifyChars = [];
+        
+        try {
+            // Get all services
+            const services = await this.server.getPrimaryServices();
+            
+            for (const service of services) {
+                try {
+                    const characteristics = await service.getCharacteristics();
+                    
+                    for (const char of characteristics) {
+                        // Check if characteristic supports notify
+                        if (char.properties.notify) {
+                            notifyChars.push({
+                                uuid: char.uuid,
+                                serviceUuid: service.uuid,
+                                characteristic: char
+                            });
+                            console.log(`Found notify-capable: ${char.uuid} in service ${service.uuid}`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Could not get characteristics for service ${service.uuid}:`, error);
+                }
+            }
+            
+            this.notifyCapableCharacteristics = notifyChars;
+            console.log(`Discovered ${notifyChars.length} notify-capable characteristics`);
+            return notifyChars;
+            
+        } catch (error) {
+            console.error('Error discovering notify-capable characteristics:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Subscribe to a specific characteristic by UUID
+     */
+    async subscribeToCharacteristic(uuid) {
+        try {
+            // First unsubscribe from any active subscription
+            if (this.activeCharacteristicSubscription) {
+                await this.unsubscribeFromCharacteristic();
+            }
+            
+            console.log(`Subscribing to characteristic: ${uuid}`);
+            
+            // Find the characteristic
+            const charInfo = this.notifyCapableCharacteristics.find(c => c.uuid === uuid);
+            if (!charInfo) {
+                throw new Error(`Characteristic ${uuid} not found in discovered characteristics`);
+            }
+            
+            const char = charInfo.characteristic;
+            
+            // Start notifications
+            await char.startNotifications();
+            
+            // Add event listener
+            const handler = (event) => {
+                try {
+                    const dataView = event.target.value;
+                    const bytes = new Uint8Array(dataView.buffer);
+                    const hexString = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+                    
+                    console.log(`📡 Data from ${uuid}:`, hexString);
+                    
+                    if (this.onCharacteristicData) {
+                        this.onCharacteristicData({
+                            uuid: uuid,
+                            timestamp: Date.now(),
+                            hexString: hexString,
+                            bytes: Array.from(bytes),
+                            raw: dataView
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error handling characteristic data:', error);
+                }
+            };
+            
+            char.addEventListener('characteristicvaluechanged', handler);
+            
+            // Store active subscription
+            this.activeCharacteristicSubscription = {
+                uuid: uuid,
+                characteristic: char,
+                handler: handler
+            };
+            
+            console.log(`Successfully subscribed to ${uuid}`);
+            return true;
+            
+        } catch (error) {
+            console.error('Error subscribing to characteristic:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Unsubscribe from the currently active characteristic
+     */
+    async unsubscribeFromCharacteristic() {
+        if (!this.activeCharacteristicSubscription) {
+            return;
+        }
+        
+        try {
+            const { uuid, characteristic, handler } = this.activeCharacteristicSubscription;
+            
+            console.log(`Unsubscribing from characteristic: ${uuid}`);
+            
+            // Remove event listener
+            characteristic.removeEventListener('characteristicvaluechanged', handler);
+            
+            // Stop notifications
+            await characteristic.stopNotifications();
+            
+            this.activeCharacteristicSubscription = null;
+            console.log(`Successfully unsubscribed from ${uuid}`);
+            
+        } catch (error) {
+            console.error('Error unsubscribing from characteristic:', error);
             throw error;
         }
     }
