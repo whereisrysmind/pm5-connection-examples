@@ -1,11 +1,12 @@
 # PM5 Bluetooth JavaScript Demo
 
-A comprehensive JavaScript implementation for connecting to Concept2 PM5 rowing machines via Web Bluetooth API. This project demonstrates how to:
+A simple JavaScript implementation for connecting to Concept2 PM5 rowing machines via Web Bluetooth API. This project demonstrates how to:
 
 - Discover and connect to PM5 devices
 - Read device information
 - Subscribe to real-time workout data
 - Parse telemetry data (distance, time, pace, stroke data, etc.)
+- Send control commands to the PM5
 
 ## Features
 
@@ -29,7 +30,6 @@ js-pm5/
 ├── src/
 │   ├── constants.js      # PM5 UUIDs and state definitions
 │   ├── parsers.js        # Data parsing utilities
-│   ├── csafe.js          # CSAFE command building
 │   ├── device.js         # PM5 device class (simplified)
 │   └── index.js          # Main demo application
 ├── index.html            # Demo web interface
@@ -244,9 +244,8 @@ For development without hardware:
 
 ### Connection Issues
 1. **Bluetooth Not Found**: Ensure PM5 Bluetooth is enabled
-2. **Connection Fails**: Try resetting PM5 Bluetooth settings
-3. **No Data**: Check that notifications are started
-4. **Permission Denied**: Use HTTPS or Chrome flags
+2. **No Data**: Check that notifications are started
+3. **Permission Denied**: Use HTTPS or Chrome flags
 
 ### Development Issues
 1. **Module Errors**: Ensure you're using a server (not file://)
@@ -269,8 +268,4 @@ For development without hardware:
 - **HTTPS Required**: Web Bluetooth only works over secure connections
 - **User Gesture**: Connection must be initiated by user interaction
 - **Permissions**: Browser will request permission for each device
-
-## License
-
-MIT License - see project root for details.
 
